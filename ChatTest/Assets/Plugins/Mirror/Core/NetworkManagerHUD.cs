@@ -14,6 +14,10 @@ namespace Mirror
         public int offsetX;
         public int offsetY;
 
+        // 添加缩放控制
+        public float guiScale = 3.0f;
+        private bool isSkinCreated = false;
+
         void Awake()
         {
             manager = GetComponent<NetworkManager>();
@@ -21,10 +25,28 @@ namespace Mirror
 
         void OnGUI()
         {
-            // If this width is changed, also change offsetX in GUIConsole::OnGUI
+            // 确保只创建一次皮肤
+            if (!isSkinCreated)
+            {
+                CreateScaledGUISkin();
+                isSkinCreated = true;
+            }
+
+            // 保存原始GUI矩阵
+            Matrix4x4 originalMatrix = GUI.matrix;
+
+            // 计算缩放矩阵
+            Vector3 scale = new Vector3(guiScale, guiScale, 1.0f);
+            GUI.matrix = Matrix4x4.TRS(new Vector3(offsetX * guiScale, offsetY * guiScale, 0),
+                                      Quaternion.identity, scale);
+
+            // 如果这个宽度被修改，也修改 GUIConsole::OnGUI 中的 offsetX
             int width = 300;
 
-            GUILayout.BeginArea(new Rect(10 + offsetX, 40 + offsetY, width, 9999));
+            GUILayout.BeginArea(new Rect(10, 40, width, 9999));
+
+            // 应用自定义皮肤
+            GUISkin originalSkin = GUI.skin;
 
             if (!NetworkClient.isConnected && !NetworkServer.active)
                 StartButtons();
@@ -35,7 +57,7 @@ namespace Mirror
             {
                 if (GUILayout.Button("Client Ready"))
                 {
-                    // client ready
+                    // 客户端准备就绪
                     NetworkClient.Ready();
                     if (NetworkClient.localPlayer == null)
                         NetworkClient.AddPlayer();
@@ -45,6 +67,37 @@ namespace Mirror
             StopButtons();
 
             GUILayout.EndArea();
+
+            // 恢复原始GUI皮肤
+            GUI.skin = originalSkin;
+
+            // 恢复原始矩阵
+            GUI.matrix = originalMatrix;
+        }
+
+        void CreateScaledGUISkin()
+        {
+            // 创建自定义GUI皮肤
+            GUISkin skin = ScriptableObject.CreateInstance<GUISkin>();
+
+            // 复制默认皮肤的样式
+            skin.label = new GUIStyle(GUI.skin.label);
+            skin.label.fontSize = (int)(GUI.skin.label.fontSize * guiScale);
+
+            skin.button = new GUIStyle(GUI.skin.button);
+            skin.button.fontSize = (int)(GUI.skin.button.fontSize * guiScale);
+            skin.button.fixedHeight = GUI.skin.button.fixedHeight * guiScale;
+
+            skin.textField = new GUIStyle(GUI.skin.textField);
+            skin.textField.fontSize = (int)(GUI.skin.textField.fontSize * guiScale);
+            skin.textField.fixedHeight = GUI.skin.textField.fixedHeight * guiScale;
+
+            skin.box = new GUIStyle(GUI.skin.box);
+            skin.box.fontSize = (int)(GUI.skin.box.fontSize * guiScale);
+            skin.box.fixedHeight = GUI.skin.box.fixedHeight * guiScale;
+
+            // 设置为当前GUI皮肤
+            GUI.skin = skin;
         }
 
         void StartButtons()
@@ -52,42 +105,38 @@ namespace Mirror
             if (!NetworkClient.active)
             {
 #if UNITY_WEBGL
-                // cant be a server in webgl build
+                // WebGL构建中不能作为服务器
                 if (GUILayout.Button("Single Player"))
                 {
                     NetworkServer.dontListen = true;
                     manager.StartHost();
                 }
 #else
-                // Server + Client
+                // 服务器 + 客户端
                 if (GUILayout.Button("Host (Server + Client)"))
                     manager.StartHost();
 #endif
 
-                // Client + IP (+ PORT)
+                // 客户端 + IP (+ 端口)
                 GUILayout.BeginHorizontal();
 
                 if (GUILayout.Button("Client"))
                     manager.StartClient();
 
                 manager.networkAddress = GUILayout.TextField(manager.networkAddress);
-                // only show a port field if we have a port transport
-                // we can't have "IP:PORT" in the address field since this only
-                // works for IPV4:PORT.
-                // for IPV6:PORT it would be misleading since IPV6 contains ":":
-                // 2001:0db8:0000:0000:0000:ff00:0042:8329
+
+                // 只有在有端口传输时才显示端口字段
                 if (Transport.active is PortTransport portTransport)
                 {
-                    // use TryParse in case someone tries to enter non-numeric characters
                     if (ushort.TryParse(GUILayout.TextField(portTransport.Port.ToString()), out ushort port))
                         portTransport.Port = port;
                 }
 
                 GUILayout.EndHorizontal();
 
-                // Server Only
+                // 仅服务器
 #if UNITY_WEBGL
-                // cant be a server in webgl build
+                // WebGL构建中不能作为服务器
                 GUILayout.Box("( WebGL cannot be server )");
 #else
                 if (GUILayout.Button("Server Only"))
@@ -96,7 +145,7 @@ namespace Mirror
             }
             else
             {
-                // Connecting
+                // 连接中
                 GUILayout.Label($"Connecting to {manager.networkAddress}..");
                 if (GUILayout.Button("Cancel Connection Attempt"))
                     manager.StopClient();
@@ -105,23 +154,23 @@ namespace Mirror
 
         void StatusLabels()
         {
-            // host mode
-            // display separately because this always confused people:
-            //   Server: ...
-            //   Client: ...
+            // 主机模式
+            // 单独显示，因为这总是让人困惑：
+            //   服务器: ...
+            //   客户端: ...
             if (NetworkServer.active && NetworkClient.active)
             {
-                // host mode
+                // 主机模式
                 GUILayout.Label($"<b>Host</b>: running via {Transport.active}");
             }
             else if (NetworkServer.active)
             {
-                // server only
+                // 仅服务器
                 GUILayout.Label($"<b>Server</b>: running via {Transport.active}");
             }
             else if (NetworkClient.isConnected)
             {
-                // client only
+                // 仅客户端
                 GUILayout.Label($"<b>Client</b>: connected to {manager.networkAddress} via {Transport.active}");
             }
         }
@@ -135,11 +184,11 @@ namespace Mirror
                 if (GUILayout.Button("Stop Single Player"))
                     manager.StopHost();
 #else
-                // stop host if host mode
+                // 如果是主机模式，停止主机
                 if (GUILayout.Button("Stop Host"))
                     manager.StopHost();
 
-                // stop client if host mode, leaving server up
+                // 如果是主机模式，停止客户端，保持服务器运行
                 if (GUILayout.Button("Stop Client"))
                     manager.StopClient();
 #endif
@@ -147,13 +196,13 @@ namespace Mirror
             }
             else if (NetworkClient.isConnected)
             {
-                // stop client if client-only
+                // 如果仅是客户端，停止客户端
                 if (GUILayout.Button("Stop Client"))
                     manager.StopClient();
             }
             else if (NetworkServer.active)
             {
-                // stop server if server-only
+                // 如果仅是服务器，停止服务器
                 if (GUILayout.Button("Stop Server"))
                     manager.StopServer();
             }
