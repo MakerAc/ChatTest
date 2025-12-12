@@ -1462,8 +1462,11 @@ MonoBehaviour:
   evaluationMethod: 0
   evaluationInterval: 3
   timeInterpolationGui: 0
-  serverAddress: 127.0.0.1
+  clientConnectAddress: 47.97.57.104
   serverPort: 7777
+  isDedicatedServer: 0
+  serverListenAddress: 0.0.0.0
+  enablePlatformOptimization: 1
 --- !u!4 &856846074
 Transform:
   m_ObjectHideFlags: 0
@@ -2018,6 +2021,8 @@ MonoBehaviour:
   maxMessages: 100
   systemColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   errorColor: {r: 1, g: 0, b: 0, a: 1}
+  androidKeyboardOffset: 300
+  androidMessageFontSize: 16
 --- !u!4 &1801190740
 Transform:
   m_ObjectHideFlags: 0

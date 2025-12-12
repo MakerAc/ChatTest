@@ -1,6 +1,4 @@
-// Scripts/Network/ChatPlayer.cs
 using Mirror;
-using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -24,6 +22,20 @@ public class ChatPlayer : NetworkBehaviour
     {
         base.OnStartLocalPlayer();
 
+        // 如果是Linux服务器模式，不初始化UI
+        if (Application.platform == RuntimePlatform.LinuxServer)
+        {
+            Debug.Log("服务器模式，跳过UI初始化");
+
+            // 设置服务器玩家名称
+            CmdSetPlayerName($"服务器_管理员");
+
+            // 设置固定颜色
+            CmdSetPlayerColor(Color.cyan);
+
+            return;
+        }
+
         // 获取UI引用
         chatUI = ChatUI.Instance;
         if (chatUI == null)
@@ -37,6 +49,12 @@ public class ChatPlayer : NetworkBehaviour
         sendButton = chatUI.sendButton;
         connectButton = chatUI.connectButton;
 
+        if (inputField == null || sendButton == null || connectButton == null)
+        {
+            Debug.LogError("UI组件获取失败！");
+            return;
+        }
+
         // 绑定按钮事件
         sendButton.onClick.AddListener(SendMessage);
         connectButton.onClick.AddListener(ToggleConnection);
@@ -45,7 +63,7 @@ public class ChatPlayer : NetworkBehaviour
         inputField.onSubmit.AddListener((text) => SendMessage());
 
         // 设置玩家名称
-        CmdSetPlayerName($"玩家{Random.Range(1000, 9999)}");
+        CmdSetPlayerName(GeneratePlayerName());
 
         // 设置随机颜色
         CmdSetPlayerColor(new Color(
@@ -55,9 +73,29 @@ public class ChatPlayer : NetworkBehaviour
         ));
     }
 
+    // 生成玩家名称
+    private string GeneratePlayerName()
+    {
+        // 根据平台生成不同的名称
+        switch (Application.platform)
+        {
+            case RuntimePlatform.Android:
+                return $"安卓用户{Random.Range(1000, 9999)}";
+            case RuntimePlatform.WindowsPlayer:
+            case RuntimePlatform.WindowsEditor:
+                return $"PC用户{Random.Range(1000, 9999)}";
+            case RuntimePlatform.LinuxPlayer:
+                return $"Linux用户{Random.Range(1000, 9999)}";
+            default:
+                return $"玩家{Random.Range(1000, 9999)}";
+        }
+    }
+
     // 发送消息
     public void SendMessage()
     {
+        if (inputField == null) return;
+
         if (string.IsNullOrWhiteSpace(inputField.text))
             return;
 
@@ -120,7 +158,7 @@ public class ChatPlayer : NetworkBehaviour
     private void RpcReceiveMessage(string sender, string message, Color color)
     {
         // 在UI中显示消息
-        ChatUI.Instance.AddMessage(sender, message, color);
+        ChatUI.Instance?.AddMessage(sender, message, color);
     }
 
     // 玩家名称变化时的回调
